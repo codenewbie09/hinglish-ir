@@ -64,13 +64,15 @@ class QueryRepr:
 
 
 class Searcher:
-    def __init__(self, mode: str | None = None, index: InvertedIndex | None = None):
+    def __init__(self, mode: str | None = None, index: InvertedIndex | None = None,
+                 k1: float | None = None, b: float | None = None):
         from src.build_index import index_path
 
         cfg = load_config()
         self.mode = mode or corpus_mode()
         self.index = index or InvertedIndex.load(index_path(self.mode))
-        k1, b = cfg["bm25"]["k1"], cfg["bm25"]["b"]
+        k1 = cfg["bm25"]["k1"] if k1 is None else k1
+        b = cfg["bm25"]["b"] if b is None else b
         self.bm25 = {f: BM25(ix, k1, b) for f, ix in self.index.fields.items()}
 
     # ---- query side -------------------------------------------------

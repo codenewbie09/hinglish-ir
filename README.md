@@ -106,8 +106,11 @@ All numbers are on the 350 MIRACL-hi **dev** queries. Weights were tuned on trai
 4. **Dense and lexical retrieval fail differently.** e5-small is the strongest single
    system on native queries (0.551) but degrades fastest with English mixing
    (0.105 at mix75, below full BM25's 0.161).
-5. **The hybrid is best on every variant on both corpora** (full corpus: 0.560 native,
-   0.496 roman, 0.184 mix75). The gain over BM25 is significant everywhere (p < 0.001).
+5. **The hybrid is best on every non-native variant on both corpora** (full corpus:
+   0.476 roman, 0.293 mix25, 0.196 mix75). On native queries dense-only is slightly
+   ahead (0.551 vs 0.539). The fusion weight tuned on train (w_dense = 0.75) gives up a
+   little native accuracy for robustness to code-mixing. The hybrid's gain over BM25 is
+   significant on every variant (p < 0.001). Hybrid vs dense was not tested.
 6. **Not every component helps everywhere (ablation).** Transliteration is essential: without
    it, roman drops from 0.330 to 0.029. Stemming and phonetic keys help on every variant.
    But expansion *hurts* pure-roman queries on the full corpus (removing it gives roman
@@ -115,10 +118,12 @@ All numbers are on the 350 MIRACL-hi **dev** queries. Weights were tuned on trai
    tags romanised Hindi as English and adds wrong Hindi words. Query-side stop-word removal
    also hurts slightly on most variants. A per-query decision on whether to expand is the
    obvious next step.
-7. **Sanity check.** Native BM25 on the full corpus (k1 = 1.2, b = 0.75) gives 0.334
-   against 0.458 in the MIRACL paper. With the paper's k1 = 0.9, b = 0.4 plus our stemmer
-   we measured 0.418. The remaining gap is attributed to Lucene's Hindi analyser
-   (normaliser, stemmer, stop words removed from documents). See Limitations.
+7. **Sanity check.** Native BM25 on the full corpus (k1 = 1.2, b = 0.75, no stemming) gives
+   nDCG@10 0.334 against 0.458 in the MIRACL paper. The paper's k1 = 0.9, b = 0.4 alone
+   gives 0.381. Adding our stemmer gives 0.420 (Recall@100 0.821 vs 0.868). We attribute the
+   remaining gap to Lucene's Hindi analyser (normaliser, stemmer, stop words removed from
+   documents). This is plausible but was not tested. All four setups are in
+   `results/sanity_full.csv`. See Limitations.
 
 The tables below are generated from the CSVs by `scripts/render_results.py`.
 
@@ -128,8 +133,12 @@ The tables below are generated from the CSVs by `scripts/render_results.py`.
 Sanity check:
 
 ```
-mode=full native BM25 (k1=1.2,b=0.75) dev: P@5=0.143, P@10=0.099, R@10=0.440, F1@10=0.151, Recall@100=0.764, nDCG@10=0.334, MRR@10=0.354
-MIRACL paper (Zhang et al. 2023) BM25 hi dev: nDCG@10=0.458, Recall@100=0.868 (full corpus, Lucene Hindi analyser, k1=0.9 b=0.4)
+mode=full: native-script BM25 on MIRACL-hi dev (350 queries)
+  k1=1.2 b=0.75, no stemming (our default)   nDCG@10=0.334 Recall@100=0.764
+  k1=1.2 b=0.75, stemming                    nDCG@10=0.372 Recall@100=0.788
+  k1=0.9 b=0.4, no stemming (paper k1/b)     nDCG@10=0.381 Recall@100=0.789
+  k1=0.9 b=0.4, stemming (paper k1/b)        nDCG@10=0.420 Recall@100=0.821
+  MIRACL paper (Zhang et al. 2023), BM25 hi dev  nDCG@10=0.458 Recall@100=0.868 (Anserini, Lucene Hindi analyser, k1=0.9 b=0.4)
 ```
 
 **nDCG@10** (best per column in bold)
@@ -141,8 +150,8 @@ MIRACL paper (Zhang et al. 2023) BM25 hi dev: nDCG@10=0.458, Recall@100=0.868 (f
 | +phonetic | 0.354 | 0.312 | 0.152 | 0.115 | 0.112 | 0.280 |
 | +expansion | 0.356 | 0.305 | 0.182 | 0.143 | 0.145 | 0.254 |
 | full | 0.391 | 0.330 | 0.204 | 0.166 | 0.161 | 0.274 |
-| dense | 0.551 | 0.402 | 0.216 | 0.145 | 0.105 | 0.309 |
-| hybrid | **0.560** | **0.495** | **0.302** | **0.226** | **0.184** | **0.406** |
+| dense | **0.551** | 0.402 | 0.216 | 0.145 | 0.105 | 0.309 |
+| hybrid | 0.539 | **0.476** | **0.293** | **0.230** | **0.196** | **0.393** |
 
 **Recall@100** (best per column in bold)
 
@@ -154,7 +163,7 @@ MIRACL paper (Zhang et al. 2023) BM25 hi dev: nDCG@10=0.458, Recall@100=0.868 (f
 | +expansion | 0.783 | 0.734 | 0.564 | 0.518 | 0.508 | 0.662 |
 | full | 0.834 | 0.770 | 0.595 | 0.546 | 0.534 | 0.703 |
 | dense | 0.895 | 0.750 | 0.488 | 0.361 | 0.292 | 0.656 |
-| hybrid | **0.939** | **0.860** | **0.666** | **0.579** | **0.539** | **0.820** |
+| hybrid | **0.936** | **0.857** | **0.658** | **0.596** | **0.549** | **0.814** |
 
 ![degradation](results/degradation_full.png)
 
@@ -174,7 +183,7 @@ MIRACL paper (Zhang et al. 2023) BM25 hi dev: nDCG@10=0.458, Recall@100=0.868 (f
 | system vs bm25 | native | roman | mix25 | mix50 | mix75 | roman_rule |
 |---|---|---|---|---|---|---|
 | full | +0.057 (p=0.0001) | +0.329 (p=0.0001) | +0.203 (p=0.0001) | +0.164 (p=0.0001) | +0.158 (p=0.0001) | +0.274 (p=0.0001) |
-| hybrid | +0.226 (p=0.0001) | +0.495 (p=0.0001) | +0.301 (p=0.0001) | +0.225 (p=0.0001) | +0.181 (p=0.0001) | +0.406 (p=0.0001) |
+| hybrid | +0.206 (p=0.0001) | +0.475 (p=0.0001) | +0.292 (p=0.0001) | +0.228 (p=0.0001) | +0.193 (p=0.0001) | +0.393 (p=0.0001) |
 
 Other metrics (P@5, P@10, F1@10, MRR@10, R@10): `results/main_long_full.csv`. Failure analysis: `results/failures_full.md`.
 
@@ -183,8 +192,12 @@ Other metrics (P@5, P@10, F1@10, MRR@10, R@10): `results/main_long_full.csv`. Fa
 Sanity check:
 
 ```
-mode=sample native BM25 (k1=1.2,b=0.75) dev: P@5=0.202, P@10=0.142, R@10=0.647, F1@10=0.219, Recall@100=0.876, nDCG@10=0.461, MRR@10=0.442
-MIRACL paper (Zhang et al. 2023) BM25 hi dev: nDCG@10=0.458, Recall@100=0.868 (full corpus, Lucene Hindi analyser, k1=0.9 b=0.4)
+mode=sample: native-script BM25 on MIRACL-hi dev (350 queries)
+  k1=1.2 b=0.75, no stemming (our default)   nDCG@10=0.461 Recall@100=0.876
+  k1=1.2 b=0.75, stemming                    nDCG@10=0.495 Recall@100=0.913
+  k1=0.9 b=0.4, no stemming (paper k1/b)     nDCG@10=0.482 Recall@100=0.888
+  k1=0.9 b=0.4, stemming (paper k1/b)        nDCG@10=0.522 Recall@100=0.919
+  MIRACL paper (Zhang et al. 2023), BM25 hi dev  nDCG@10=0.458 Recall@100=0.868 (Anserini, Lucene Hindi analyser, k1=0.9 b=0.4)
 ```
 
 **nDCG@10** (best per column in bold)
@@ -196,8 +209,8 @@ MIRACL paper (Zhang et al. 2023) BM25 hi dev: nDCG@10=0.458, Recall@100=0.868 (f
 | +phonetic | 0.478 | 0.443 | 0.264 | 0.200 | 0.193 | 0.406 |
 | +expansion | 0.480 | 0.436 | 0.311 | 0.266 | 0.259 | 0.398 |
 | full | 0.513 | 0.468 | 0.328 | 0.287 | 0.284 | 0.433 |
-| dense | 0.642 | 0.531 | 0.331 | 0.239 | 0.168 | 0.449 |
-| hybrid | **0.652** | **0.596** | **0.459** | **0.389** | **0.346** | **0.537** |
+| dense | **0.642** | 0.531 | 0.331 | 0.239 | 0.168 | 0.449 |
+| hybrid | 0.636 | **0.591** | **0.462** | **0.399** | **0.363** | **0.534** |
 
 **Recall@100** (best per column in bold)
 
@@ -207,9 +220,9 @@ MIRACL paper (Zhang et al. 2023) BM25 hi dev: nDCG@10=0.458, Recall@100=0.868 (f
 | +translit | 0.876 | 0.822 | 0.551 | 0.464 | 0.431 | 0.755 |
 | +phonetic | 0.891 | 0.863 | 0.593 | 0.503 | 0.463 | 0.835 |
 | +expansion | 0.891 | 0.865 | 0.785 | 0.770 | 0.746 | 0.828 |
-| full | 0.924 | 0.903 | 0.820 | 0.790 | **0.766** | 0.856 |
+| full | 0.924 | 0.903 | 0.820 | 0.790 | 0.766 | 0.856 |
 | dense | 0.971 | 0.880 | 0.648 | 0.525 | 0.454 | 0.814 |
-| hybrid | **0.991** | **0.966** | **0.841** | **0.797** | 0.764 | **0.946** |
+| hybrid | **0.989** | **0.968** | **0.851** | **0.807** | **0.774** | **0.946** |
 
 ![degradation](results/degradation_sample.png)
 
@@ -229,7 +242,7 @@ MIRACL paper (Zhang et al. 2023) BM25 hi dev: nDCG@10=0.458, Recall@100=0.868 (f
 | system vs bm25 | native | roman | mix25 | mix50 | mix75 | roman_rule |
 |---|---|---|---|---|---|---|
 | full | +0.052 (p=0.0001) | +0.463 (p=0.0001) | +0.320 (p=0.0001) | +0.279 (p=0.0001) | +0.275 (p=0.0001) | +0.430 (p=0.0001) |
-| hybrid | +0.191 (p=0.0001) | +0.591 (p=0.0001) | +0.451 (p=0.0001) | +0.380 (p=0.0001) | +0.336 (p=0.0001) | +0.535 (p=0.0001) |
+| hybrid | +0.175 (p=0.0001) | +0.586 (p=0.0001) | +0.454 (p=0.0001) | +0.390 (p=0.0001) | +0.354 (p=0.0001) | +0.532 (p=0.0001) |
 
 Other metrics (P@5, P@10, F1@10, MRR@10, R@10): `results/main_long_sample.csv`. Failure analysis: `results/failures_sample.md`.
 <!-- results:end -->

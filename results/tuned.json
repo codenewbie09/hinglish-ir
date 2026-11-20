@@ -7,7 +7,7 @@
   },
   "hybrid": {
     "k": 30,
-    "w_dense": 1.0,
+    "w_dense": 0.75,
     "dense_text": "deva"
   },
   "objective": "mean train nDCG@10 over native,roman,mix25,mix50,mix75",

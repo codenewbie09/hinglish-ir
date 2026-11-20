@@ -27,3 +27,10 @@ def test_pipeline_baseline_on_toy_index():
     s = Searcher(index=InvertedIndex(["d0", "d1"], fields))
     _, hits = s.search("गंगा नदी", "bm25", k=2)
     assert hits[0][0] == "d1"
+
+
+def test_searcher_accepts_bm25_parameters():
+    docs = [["भारत", "राजधानी"], ["गंगा", "नदी"]]
+    fields = {f: FieldIndex.build(docs) for f in ("tok", "stem", "phon")}
+    s = Searcher(index=InvertedIndex(["d0", "d1"], fields), k1=0.9, b=0.4)
+    assert all(m.k1 == 0.9 and m.b == 0.4 for m in s.bm25.values())

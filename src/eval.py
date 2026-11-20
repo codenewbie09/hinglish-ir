@@ -15,7 +15,7 @@ from src.config import ROOT, load_config, path, seed_everything
 from src.data import add_mode_flags, apply_mode, load_corpus, load_qrels
 from src.fusion import rrf
 from src.metrics import evaluate_run, randomisation_test
-from src.pipeline import SYSTEMS, Searcher, system_config
+from src.pipeline import DEFAULTS, SYSTEMS, Searcher, system_config
 from src.variants import load_variants, queries_for
 
 RESULTS = ROOT / "results"
@@ -74,9 +74,11 @@ class Evaluator:
             self._cache[key] = {q: [d for d, _ in r] for q, r in zip(qs, res)}
         return self._cache[key]
 
-    def hybrid_run(self, split, variant, p: dict | None = None) -> dict[str, list[str]]:
+    def hybrid_run(self, split, variant, p: dict | None = None,
+                   bm25_cfg="full") -> dict[str, list[str]]:
+        """bm25_cfg: the BM25 side; tuning passes the weights it just chose explicitly."""
         p = p or tuned().get("hybrid", {"k": 60, "w_dense": 1.0, "dense_text": "raw"})
-        a = self.bm25_run("full", split, variant)
+        a = self.bm25_run(bm25_cfg, split, variant)
         b = self.dense_run(split, variant, p["dense_text"])
         return {q: [d for d, _ in rrf([a[q], b.get(q, [])], [1.0, p["w_dense"]], k=p["k"])] for q in a}
 
@@ -140,13 +142,27 @@ def plot_degradation(df, name, title):
 
 # ------------------------------------------------------------------ commands
 def cmd_sanity(ev: Evaluator):
-    r = ev.score(ev.bm25_run("bm25", "dev", "native"), "dev")["mean"]
-    lines = [f"mode={ev.mode} native BM25 (k1=1.2,b=0.75) dev: "
-             + ", ".join(f"{k}={v:.3f}" for k, v in r.items()),
-             "MIRACL paper (Zhang et al. 2023) BM25 hi dev: nDCG@10=0.458, Recall@100=0.868 "
-             "(full corpus, Lucene Hindi analyser, k1=0.9 b=0.4)"]
+    """Native-script BM25 on dev: our default settings, and the MIRACL paper's k1/b."""
+    from src.variants import queries_for
+
+    qs = queries_for("dev", "native")
+    paper = Searcher(ev.mode, index=ev.s.index, k1=0.9, b=0.4)
+    setups = [("k1=1.2 b=0.75, no stemming (our default)", ev.s, "bm25"),
+              ("k1=1.2 b=0.75, stemming", ev.s, {"stemming": True}),
+              ("k1=0.9 b=0.4, no stemming (paper k1/b)", paper, "bm25"),
+              ("k1=0.9 b=0.4, stemming (paper k1/b)", paper, {"stemming": True})]
+    rows, lines = [], [f"mode={ev.mode}: native-script BM25 on MIRACL-hi dev ({len(qs)} queries)"]
+    for label, searcher, system in setups:
+        run = {q: [d for d, _ in searcher.search(t, system, 100)[1]] for q, t in qs.items()}
+        m = ev.score(run, "dev")["mean"]
+        rows.append({"setup": label, **m})
+        lines.append(f"  {label:42s} nDCG@10={m['nDCG@10']:.3f} Recall@100={m['Recall@100']:.3f}")
+    lines.append("  MIRACL paper (Zhang et al. 2023), BM25 hi dev  nDCG@10=0.458 Recall@100=0.868"
+                 " (Anserini, Lucene Hindi analyser, k1=0.9 b=0.4)")
     print("\n".join(lines))
     path("results", f"sanity_{ev.mode}.txt").write_text("\n".join(lines) + "\n")
+    pd.DataFrame(rows).to_csv(path("results", f"sanity_{ev.mode}.csv"), index=False,
+                              float_format="%.4f")
 
 
 def cmd_baseline(ev: Evaluator):
@@ -160,7 +176,7 @@ def cmd_tune(ev: Evaluator):
     def obj(fn):
         return float(np.mean([ev.score(fn(v), "train")["mean"]["nDCG@10"] for v in LEVELS]))
 
-    best = {k: system_config("full")[k] for k in
+    best = {k: {**DEFAULTS, **SYSTEMS["full"]}[k] for k in
             ("phon_weight", "latin_keep_weight", "expansion_weight", "translit_top2_weight")}
     best.setdefault("translit_top2_weight", 0.0)
     grid = {"latin_keep_weight": [0.0, 0.3, 0.6, 1.0], "phon_weight": [0.0, 0.1, 0.2, 0.3, 0.5],
@@ -170,17 +186,19 @@ def cmd_tune(ev: Evaluator):
         for param, values in grid.items():
             scores = {}
             for val in values:
-                cfg = {**SYSTEMS["full"], **best, param: val}
+                cfg = {**DEFAULTS, **SYSTEMS["full"], **best, param: val}
                 scores[val] = obj(lambda v: ev.bm25_run(cfg, "train", v))
                 log.append({"stage": "bm25", "param": param, "value": val, "nDCG@10": scores[val]})
                 print(f"  {param}={val}: {scores[val]:.4f}", flush=True)
             best[param] = max(scores, key=scores.get)
+    # hybrid is tuned on top of the BM25 weights chosen above, never on tuned.json from disk
+    full_cfg = {**DEFAULTS, **SYSTEMS["full"], **best}
     hy, hy_scores = None, {}
     for text in ["raw", "deva"]:
         for k in [10, 30, 60, 100]:
             for w in [0.25, 0.5, 0.75, 1.0, 1.5, 2.0]:
                 p = {"k": k, "w_dense": w, "dense_text": text}
-                sc = obj(lambda v: ev.hybrid_run("train", v, p))
+                sc = obj(lambda v: ev.hybrid_run("train", v, p, bm25_cfg=full_cfg))
                 log.append({"stage": "hybrid", "param": json.dumps(p), "value": None, "nDCG@10": sc})
                 hy_scores[json.dumps(p)] = sc
     hy = json.loads(max(hy_scores, key=hy_scores.get))

@@ -1,2 +1,6 @@
-mode=sample native BM25 (k1=1.2,b=0.75) dev: P@5=0.202, P@10=0.142, R@10=0.647, F1@10=0.219, Recall@100=0.876, nDCG@10=0.461, MRR@10=0.442
-MIRACL paper (Zhang et al. 2023) BM25 hi dev: nDCG@10=0.458, Recall@100=0.868 (full corpus, Lucene Hindi analyser, k1=0.9 b=0.4)
+mode=sample: native-script BM25 on MIRACL-hi dev (350 queries)
+  k1=1.2 b=0.75, no stemming (our default)   nDCG@10=0.461 Recall@100=0.876
+  k1=1.2 b=0.75, stemming                    nDCG@10=0.495 Recall@100=0.913
+  k1=0.9 b=0.4, no stemming (paper k1/b)     nDCG@10=0.482 Recall@100=0.888
+  k1=0.9 b=0.4, stemming (paper k1/b)        nDCG@10=0.522 Recall@100=0.919
+  MIRACL paper (Zhang et al. 2023), BM25 hi dev  nDCG@10=0.458 Recall@100=0.868 (Anserini, Lucene Hindi analyser, k1=0.9 b=0.4)
