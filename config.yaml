@@ -1,0 +1,20 @@
+seed: 42
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  sample_random_passages: 50000
+bm25:
+  k1: 1.2
+  b: 0.75
+retrieval:
+  depth: 100          # documents kept per query for metrics / fusion
+dense:
+  model: intfloat/multilingual-e5-small
+  batch_size: 128
+  rerank_depth: 100   # CPU mode: embed only BM25 top-N candidates
+llm:
+  provider: groq      # any OpenAI-compatible endpoint, see src/llm.py
+  model: llama-3.3-70b-versatile
+  batch_size: 10
+  temperature: 0
+variants: [native, roman, mix25, mix50, mix75]
