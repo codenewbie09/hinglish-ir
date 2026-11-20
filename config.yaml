@@ -16,7 +16,7 @@ dense:
 llm:
   provider: groq      # any OpenAI-compatible endpoint, see src/llm.py
   variant_model: openai/gpt-oss-120b   # generates query variants
-  normalise_model: qwen/qwen3.8-27b    # transliteration + dictionary (different family on purpose)
+  normalise_model: openai/gpt-oss-20b  # lexicon + transliteration fallback (not the variant model)
   batch_size: 10
   temperature: 0
 variants: [native, roman, mix25, mix50, mix75]

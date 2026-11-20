@@ -92,7 +92,147 @@ All numbers are on the 350 MIRACL-hi **dev** queries. Weights were tuned on trai
 | `tuning_*.csv`, `tuned.json` | train-set tuning log and chosen weights |
 | `variant_examples.md` | example variants per level |
 
-RESULTS_TABLES
+### Key findings
+
+1. **Romanised queries break lexical retrieval.** On the full corpus, native BM25 reaches
+   nDCG@10 0.334, while roman queries get 0.001 and code-mixed ones at most 0.003. Latin
+   tokens match almost nothing in Devanagari passages.
+2. **Normalisation recovers most of the roman loss.** Transliteration alone brings roman
+   queries to 0.274. With phonetic keys, expansion and stemming the full pipeline reaches
+   0.330, about the same as native BM25 (0.334).
+3. **Code-mixing is the harder problem.** Full BM25 falls from 0.330 (roman) to 0.161
+   (mix75). Bilingual expansion is the component that helps here: Recall@100 at mix75
+   rises from 0.33 (+phonetic) to 0.51 (+expansion).
+4. **Dense and lexical retrieval fail differently.** e5-small is the strongest single
+   system on native queries (0.551) but degrades fastest with English mixing
+   (0.105 at mix75, below full BM25's 0.161).
+5. **The hybrid is best on every variant on both corpora** (full corpus: 0.560 native,
+   0.496 roman, 0.184 mix75). The gain over BM25 is significant everywhere (p < 0.001).
+6. **Not every component helps everywhere (ablation).** Transliteration is essential: without
+   it, roman drops from 0.330 to 0.029. Stemming and phonetic keys help on every variant.
+   But expansion *hurts* pure-roman queries on the full corpus (removing it gives roman
+   0.337 and roman_rule 0.299, against 0.330 and 0.274). The context-free lexicon sometimes
+   tags romanised Hindi as English and adds wrong Hindi words. Query-side stop-word removal
+   also hurts slightly on most variants. A per-query decision on whether to expand is the
+   obvious next step.
+7. **Sanity check.** Native BM25 on the full corpus (k1 = 1.2, b = 0.75) gives 0.334
+   against 0.458 in the MIRACL paper. With the paper's k1 = 0.9, b = 0.4 plus our stemmer
+   we measured 0.418. The remaining gap is attributed to Lucene's Hindi analyser
+   (normaliser, stemmer, stop words removed from documents). See Limitations.
+
+The tables below are generated from the CSVs by `scripts/render_results.py`.
+
+<!-- results:start -->
+### Full corpus (506,264 passages)
+
+Sanity check:
+
+```
+mode=full native BM25 (k1=1.2,b=0.75) dev: P@5=0.143, P@10=0.099, R@10=0.440, F1@10=0.151, Recall@100=0.764, nDCG@10=0.334, MRR@10=0.354
+MIRACL paper (Zhang et al. 2023) BM25 hi dev: nDCG@10=0.458, Recall@100=0.868 (full corpus, Lucene Hindi analyser, k1=0.9 b=0.4)
+```
+
+**nDCG@10** (best per column in bold)
+
+| system | native | roman | mix25 | mix50 | mix75 | roman_rule |
+|---|---|---|---|---|---|---|
+| bm25 | 0.334 | 0.001 | 0.001 | 0.001 | 0.003 | 0.000 |
+| +translit | 0.334 | 0.274 | 0.130 | 0.095 | 0.093 | 0.229 |
+| +phonetic | 0.354 | 0.312 | 0.152 | 0.115 | 0.112 | 0.280 |
+| +expansion | 0.356 | 0.305 | 0.182 | 0.143 | 0.145 | 0.254 |
+| full | 0.391 | 0.330 | 0.204 | 0.166 | 0.161 | 0.274 |
+| dense | 0.551 | 0.402 | 0.216 | 0.145 | 0.105 | 0.309 |
+| hybrid | **0.560** | **0.495** | **0.302** | **0.226** | **0.184** | **0.406** |
+
+**Recall@100** (best per column in bold)
+
+| system | native | roman | mix25 | mix50 | mix75 | roman_rule |
+|---|---|---|---|---|---|---|
+| bm25 | 0.764 | 0.013 | 0.017 | 0.018 | 0.019 | 0.005 |
+| +translit | 0.761 | 0.676 | 0.393 | 0.313 | 0.295 | 0.592 |
+| +phonetic | 0.783 | 0.734 | 0.429 | 0.349 | 0.327 | 0.677 |
+| +expansion | 0.783 | 0.734 | 0.564 | 0.518 | 0.508 | 0.662 |
+| full | 0.834 | 0.770 | 0.595 | 0.546 | 0.534 | 0.703 |
+| dense | 0.895 | 0.750 | 0.488 | 0.361 | 0.292 | 0.656 |
+| hybrid | **0.939** | **0.860** | **0.666** | **0.579** | **0.539** | **0.820** |
+
+![degradation](results/degradation_full.png)
+
+**Ablation, nDCG@10** (full pipeline minus one component)
+
+| ablation | native | roman | mix25 | mix50 | mix75 | roman_rule |
+|---|---|---|---|---|---|---|
+| full | 0.391 | 0.330 | 0.204 | 0.166 | **0.161** | 0.274 |
+| full - expansion | 0.388 | **0.337** | 0.164 | 0.120 | 0.116 | **0.299** |
+| full - phonetic | 0.375 | 0.287 | 0.183 | 0.151 | 0.155 | 0.216 |
+| full - stemming | 0.356 | 0.305 | 0.182 | 0.143 | 0.145 | 0.254 |
+| full - stopwords | **0.403** | 0.337 | **0.215** | **0.169** | 0.152 | 0.273 |
+| full - translit | 0.391 | 0.029 | 0.062 | 0.078 | 0.082 | 0.006 |
+
+**Paired randomisation test, nDCG@10 delta vs BM25** (10,000 permutations)
+
+| system vs bm25 | native | roman | mix25 | mix50 | mix75 | roman_rule |
+|---|---|---|---|---|---|---|
+| full | +0.057 (p=0.0001) | +0.329 (p=0.0001) | +0.203 (p=0.0001) | +0.164 (p=0.0001) | +0.158 (p=0.0001) | +0.274 (p=0.0001) |
+| hybrid | +0.226 (p=0.0001) | +0.495 (p=0.0001) | +0.301 (p=0.0001) | +0.225 (p=0.0001) | +0.181 (p=0.0001) | +0.406 (p=0.0001) |
+
+Other metrics (P@5, P@10, F1@10, MRR@10, R@10): `results/main_long_full.csv`. Failure analysis: `results/failures_full.md`.
+
+### Sample corpus (63,452 passages)
+
+Sanity check:
+
+```
+mode=sample native BM25 (k1=1.2,b=0.75) dev: P@5=0.202, P@10=0.142, R@10=0.647, F1@10=0.219, Recall@100=0.876, nDCG@10=0.461, MRR@10=0.442
+MIRACL paper (Zhang et al. 2023) BM25 hi dev: nDCG@10=0.458, Recall@100=0.868 (full corpus, Lucene Hindi analyser, k1=0.9 b=0.4)
+```
+
+**nDCG@10** (best per column in bold)
+
+| system | native | roman | mix25 | mix50 | mix75 | roman_rule |
+|---|---|---|---|---|---|---|
+| bm25 | 0.461 | 0.005 | 0.008 | 0.009 | 0.009 | 0.003 |
+| +translit | 0.460 | 0.402 | 0.232 | 0.176 | 0.172 | 0.346 |
+| +phonetic | 0.478 | 0.443 | 0.264 | 0.200 | 0.193 | 0.406 |
+| +expansion | 0.480 | 0.436 | 0.311 | 0.266 | 0.259 | 0.398 |
+| full | 0.513 | 0.468 | 0.328 | 0.287 | 0.284 | 0.433 |
+| dense | 0.642 | 0.531 | 0.331 | 0.239 | 0.168 | 0.449 |
+| hybrid | **0.652** | **0.596** | **0.459** | **0.389** | **0.346** | **0.537** |
+
+**Recall@100** (best per column in bold)
+
+| system | native | roman | mix25 | mix50 | mix75 | roman_rule |
+|---|---|---|---|---|---|---|
+| bm25 | 0.876 | 0.036 | 0.051 | 0.056 | 0.055 | 0.011 |
+| +translit | 0.876 | 0.822 | 0.551 | 0.464 | 0.431 | 0.755 |
+| +phonetic | 0.891 | 0.863 | 0.593 | 0.503 | 0.463 | 0.835 |
+| +expansion | 0.891 | 0.865 | 0.785 | 0.770 | 0.746 | 0.828 |
+| full | 0.924 | 0.903 | 0.820 | 0.790 | **0.766** | 0.856 |
+| dense | 0.971 | 0.880 | 0.648 | 0.525 | 0.454 | 0.814 |
+| hybrid | **0.991** | **0.966** | **0.841** | **0.797** | 0.764 | **0.946** |
+
+![degradation](results/degradation_sample.png)
+
+**Ablation, nDCG@10** (full pipeline minus one component)
+
+| ablation | native | roman | mix25 | mix50 | mix75 | roman_rule |
+|---|---|---|---|---|---|---|
+| full | 0.513 | 0.468 | 0.328 | 0.287 | **0.284** | 0.433 |
+| full - expansion | 0.510 | 0.466 | 0.270 | 0.210 | 0.201 | 0.433 |
+| full - phonetic | 0.497 | 0.431 | 0.309 | 0.275 | 0.271 | 0.361 |
+| full - stemming | 0.480 | 0.436 | 0.311 | 0.266 | 0.259 | 0.398 |
+| full - stopwords | **0.518** | **0.476** | **0.343** | **0.293** | 0.273 | **0.439** |
+| full - translit | 0.513 | 0.070 | 0.141 | 0.174 | 0.180 | 0.014 |
+
+**Paired randomisation test, nDCG@10 delta vs BM25** (10,000 permutations)
+
+| system vs bm25 | native | roman | mix25 | mix50 | mix75 | roman_rule |
+|---|---|---|---|---|---|---|
+| full | +0.052 (p=0.0001) | +0.463 (p=0.0001) | +0.320 (p=0.0001) | +0.279 (p=0.0001) | +0.275 (p=0.0001) | +0.430 (p=0.0001) |
+| hybrid | +0.191 (p=0.0001) | +0.591 (p=0.0001) | +0.451 (p=0.0001) | +0.380 (p=0.0001) | +0.336 (p=0.0001) | +0.535 (p=0.0001) |
+
+Other metrics (P@5, P@10, F1@10, MRR@10, R@10): `results/main_long_sample.csv`. Failure analysis: `results/failures_sample.md`.
+<!-- results:end -->
 
 ## Demo
 

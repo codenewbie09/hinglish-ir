@@ -1,0 +1,2 @@
+mode=full native BM25 (k1=1.2,b=0.75) dev: P@5=0.143, P@10=0.099, R@10=0.440, F1@10=0.151, Recall@100=0.764, nDCG@10=0.334, MRR@10=0.354
+MIRACL paper (Zhang et al. 2023) BM25 hi dev: nDCG@10=0.458, Recall@100=0.868 (full corpus, Lucene Hindi analyser, k1=0.9 b=0.4)

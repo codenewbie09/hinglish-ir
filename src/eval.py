@@ -88,7 +88,8 @@ class Evaluator:
         return self.bm25_run(system, split, variant)
 
     def score(self, run, split):
-        return evaluate_run(run, self.qrels[split])
+        # evaluate exactly the split's query set (train = the fixed tuning subset)
+        return evaluate_run(run, self.qrels[split], qids=queries_for(split, "native"))
 
 
 # ------------------------------------------------------------------ helpers

@@ -11,8 +11,10 @@ Free tier: 8k tokens/min per model.
 ## Decision
 - `src/llm.py` talks to any OpenAI-compatible endpoint (`PROVIDERS` table, `LLM_BASE_URL`).
 - Variants are generated with `openai/gpt-oss-120b` (reasoning_effort=low).
-- Normalisation (lexicon/transliteration fallback) uses `qwen/qwen3.8-27b`, a different
-  model family, so the pipeline is not simply inverting its own model's romanisation.
+- The normalisation lexicon (English? -> Hindi equivalent; transliteration fallback) uses
+  `openai/gpt-oss-20b`, a different model from the variant generator. Transliteration itself
+  is done by IndicXlit (ADR 2), so the pipeline does not invert the generator's own
+  romanisation. `qwen/qwen3.8-27b` was tried first but Groq caps it at 1k output tokens/min.
 - Every response is cached forever in `data/cache/llm.jsonl` (key: model, messages,
   temperature). The cache ships with the project so results reproduce offline.
 

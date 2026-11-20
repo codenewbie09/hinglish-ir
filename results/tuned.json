@@ -1,0 +1,16 @@
+{
+  "pipeline": {
+    "phon_weight": 0.5,
+    "latin_keep_weight": 0.3,
+    "expansion_weight": 1.0,
+    "translit_top2_weight": 0.3
+  },
+  "hybrid": {
+    "k": 30,
+    "w_dense": 1.0,
+    "dense_text": "deva"
+  },
+  "objective": "mean train nDCG@10 over native,roman,mix25,mix50,mix75",
+  "train_queries": 400,
+  "mode": "sample"
+}

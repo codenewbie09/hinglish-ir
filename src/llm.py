@@ -66,12 +66,16 @@ def chat(messages: list[dict], model: str, temperature: float = 0.0, json_mode=T
     body = {"model": model, "messages": messages, "temperature": temperature, **extra}
     if json_mode:
         body["response_format"] = {"type": "json_object"}
-    for attempt in range(8):
-        r = requests.post(f"{base}/chat/completions", json=body, timeout=180,
-                          headers={"Authorization": f"Bearer {api_key}"})
+    for attempt in range(40):  # free tiers rate-limit hard; back off patiently
+        try:
+            r = requests.post(f"{base}/chat/completions", json=body, timeout=180,
+                              headers={"Authorization": f"Bearer {api_key}"})
+        except requests.RequestException:
+            time.sleep(5)
+            continue
         if r.status_code == 429 or r.status_code >= 500:
-            wait = float(r.headers.get("retry-after", 2 ** attempt))
-            time.sleep(min(wait, 60))
+            wait = float(r.headers.get("retry-after", 0) or 0)
+            time.sleep(min(max(wait, 3 + 2 * min(attempt, 10)), 60))
             continue
         if r.status_code == 400 and json_mode and "json" in r.text.lower():
             body.pop("response_format", None)  # model produced invalid JSON; retry free-form

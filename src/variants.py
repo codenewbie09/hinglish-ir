@@ -78,7 +78,7 @@ def tuning_qids() -> list[str]:
     return sorted(random.Random(cfg["seed"]).sample(qids, cfg["tune_queries"]))
 
 
-def generate(workers: int = 2) -> dict[str, dict]:
+def generate(workers: int = 1) -> dict[str, dict]:
     cfg = load_config()["llm"]
     have = load_variants()
     todo = []

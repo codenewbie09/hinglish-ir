@@ -62,7 +62,7 @@ def _lexicon_batch(words: list[str]) -> dict[str, dict]:
     cfg = load_config()["llm"]
     out = parse_json(chat([{"role": "system", "content": LEXICON_PROMPT},
                            {"role": "user", "content": json.dumps({"tokens": words})}],
-                          model=cfg["normalise_model"], reasoning_effort="none"))
+                          model=cfg["normalise_model"], reasoning_effort="low"))
     res = {}
     for it in out.get("items", []):
         w = str(it.get("w", "")).lower()

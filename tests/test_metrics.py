@@ -16,3 +16,10 @@ def test_evaluate_run():
     assert m["MRR@10"] == pytest.approx(0.5)
     assert m["P@5"] == pytest.approx(2 / 5)
     assert m["Recall@100"] == pytest.approx(1.0)
+
+
+def test_evaluate_run_restricted_to_query_subset():
+    qrels = {"q1": {"d": 1}, "q2": {"d": 1}}
+    run = {"q1": ["d"]}
+    assert evaluate_run(run, qrels)["mean"]["nDCG@10"] == pytest.approx(0.5)  # missing q2 = 0
+    assert evaluate_run(run, qrels, qids=["q1"])["mean"]["nDCG@10"] == pytest.approx(1.0)

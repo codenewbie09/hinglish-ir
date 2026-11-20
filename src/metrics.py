@@ -49,10 +49,15 @@ METRICS = {
 }
 
 
-def evaluate_run(run: dict[str, list[str]], qrels: dict[str, dict[str, int]]) -> dict:
-    """run: qid -> ranked doc ids. Queries without a positive judgment are skipped."""
+def evaluate_run(run: dict[str, list[str]], qrels: dict[str, dict[str, int]],
+                 qids=None) -> dict:
+    """run: qid -> ranked doc ids. Evaluates `qids` (default: every judged query; a query
+    missing from the run scores 0). Queries without a positive judgment are skipped."""
     per_q = {}
+    wanted = set(qids) if qids is not None else None
     for qid, rels in qrels.items():
+        if wanted is not None and qid not in wanted:
+            continue
         if not any(v > 0 for v in rels.values()):
             continue
         ranked = run.get(qid, [])
