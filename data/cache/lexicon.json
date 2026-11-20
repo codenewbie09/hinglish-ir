@@ -1,0 +1,48 @@
+{
+"roth": {
+"english": false,
+"hindi": [],
+"deva": "रोथ"
+},
+"ira": {
+"english": false,
+"hindi": [],
+"deva": "इरा"
+},
+"tax": {
+"english": true,
+"hindi": [
+"कर"
+],
+"deva": "टैक्स"
+},
+"lagta": {
+"english": false,
+"hindi": [],
+"deva": "लगता"
+},
+"pakistan": {
+"english": true,
+"hindi": [
+"पाकिस्तान"
+],
+"deva": "पाकिस्तान"
+},
+"religion": {
+"english": true,
+"hindi": [
+"धर्म"
+],
+"deva": "रिलीजन"
+},
+"sabse": {
+"english": false,
+"hindi": [],
+"deva": "सबसे"
+},
+"bada": {
+"english": false,
+"hindi": [],
+"deva": "बड़ा"
+}
+}

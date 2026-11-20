@@ -1,0 +1,2 @@
+# optional IndicXlit environment: Python 3.10 (fairseq does not install on 3.12)
+ai4bharat-transliteration

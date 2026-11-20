@@ -30,11 +30,21 @@ DEFAULTS = {
     "phon_weight": 0.3,      # weight of the phonetic field (tuned on train)
     "latin_keep_weight": 1.0,  # original Latin token when transliterated
     "expansion_weight": 0.5,   # Hindi equivalent of an English token
+    "english_keep_weight": 1.0,  # original token when the lexicon says it is English
+    "translit_top2_weight": 0.0,  # second IndicXlit candidate
 }
 
 
 def system_config(name_or_cfg) -> dict:
+    """Defaults < tuned weights (results/tuned.json, fitted on train) < system/explicit cfg."""
+    import json
+
+    from src.config import ROOT
+
     cfg = dict(DEFAULTS)
+    tuned = ROOT / "results" / "tuned.json"
+    if tuned.exists():
+        cfg.update(json.loads(tuned.read_text()).get("pipeline", {}))
     cfg.update(SYSTEMS[name_or_cfg] if isinstance(name_or_cfg, str) else name_or_cfg)
     return cfg
 

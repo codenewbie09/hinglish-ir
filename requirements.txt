@@ -1,0 +1,14 @@
+# main environment: Python 3.12
+huggingface-hub==2.4.0
+indic-transliteration==2.3.82
+matplotlib==3.11.2
+numpy==2.5.5
+pandas==3.1.1
+pytest==9.2.0
+python-dotenv==1.2.4
+pyyaml==6.0.3
+requests==2.34.2
+sentence-transformers==6.3.0
+streamlit==1.67.0
+torch==2.15.0
+tqdm==4.70.1
