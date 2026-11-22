@@ -47,6 +47,12 @@ def _worker() -> subprocess.Popen:
     return _proc
 
 
+def cached(words: list[str]) -> dict[str, list[str]]:
+    """Cache hits only (the shipped data/cache/xlit.json); needs no backend."""
+    cache = _load()
+    return {w: cache[w] for w in words if w in cache}
+
+
 def transliterate(words: list[str]) -> dict[str, list[str]]:
     """Top-2 Devanagari candidates per romanised word ([] if no backend can do it)."""
     cache = _load()

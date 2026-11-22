@@ -82,3 +82,22 @@ def test_dense_cpu_needs_candidates(monkeypatch, tmp_path):
     monkeypatch.setattr(dense, "path", lambda *p: tmp_path / p[-1])
     with pytest.raises(AssertionError):
         dense.Dense("toy", []).search_many(["q"])
+
+
+# ---- transliteration without the IndicXlit venv (fresh unzip) -------------------------
+def test_transliterate_uses_shipped_xlit_cache_even_without_backend(monkeypatch):
+    from src import normalise
+
+    monkeypatch.setattr(xlit, "_cache", {"aagra": ["आगरा", "आग्रा"], "zz": []})
+    monkeypatch.setattr(xlit, "available", lambda: False)
+    monkeypatch.setattr(xlit, "_worker", lambda: pytest.fail("worker must not start"))
+    seen = []
+
+    def fake_lexicon(ws):
+        seen.extend(ws)
+        return {w: {"english": False, "hindi": [], "deva": "लेक्स"} for w in ws}
+
+    monkeypatch.setattr(normalise, "lexicon", fake_lexicon)
+    got = normalise.transliterate(["aagra", "zz", "newword"])
+    assert got == {"aagra": ["आगरा", "आग्रा"], "zz": [], "newword": ["लेक्स"]}
+    assert seen == ["newword"]          # only cache misses fall back to the LLM lexicon

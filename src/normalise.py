@@ -93,10 +93,16 @@ def lexicon(words: list[str], batch: int = 40) -> dict[str, dict]:
 
 
 def transliterate(words: list[str]) -> dict[str, list[str]]:
-    """IndicXlit if installed, else the LLM lexicon's 'deva' field."""
-    if xlit.available():
-        return xlit.transliterate(words)
-    return {w: [e["deva"]] if e["deva"] else [] for w, e in lexicon(words).items()}
+    """Cached IndicXlit output first (shipped, so results reproduce without .venv-xlit);
+    misses go to IndicXlit if installed, else to the LLM lexicon's 'deva' field."""
+    out = xlit.cached(words)
+    misses = [w for w in words if w not in out]
+    if misses:
+        if xlit.available():
+            out.update(xlit.transliterate(misses))
+        else:
+            out.update({w: [e["deva"]] if e["deva"] else [] for w, e in lexicon(misses).items()})
+    return {w: out[w] for w in words}
 
 
 def prefetch(queries: list[str], cfg: dict) -> None:
