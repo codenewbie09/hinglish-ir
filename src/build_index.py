@@ -1,6 +1,6 @@
 """Build the three-field inverted index: tok (plain), stem (stemmed), phon (phonetic keys).
 
-    python -m src.build_index [--sample|--full]
+    python -m src.build_index [--sample|--full] [--lucene]
 """
 from __future__ import annotations
 
@@ -16,8 +16,16 @@ from src.index import FieldIndex, InvertedIndex
 from src.phonetic import phonetic_key
 
 
-def index_path(mode: str):
-    return path("data", "processed", mode, "index.pkl")
+def index_path(mode: str, lucene: bool = False):
+    return path("data", "processed", mode, "index_lucene.pkl" if lucene else "index.pkl")
+
+
+def build_lucene_index(corpus: list[dict]) -> InvertedIndex:
+    """One field analysed like Lucene's HindiAnalyzer (sanity check only, see src/lucene_hindi.py)."""
+    from src.lucene_hindi import analyse
+
+    toks = [analyse(doc_text(d)) for d in tqdm(corpus, desc="lucene analyse")]
+    return InvertedIndex([d["docid"] for d in corpus], {"tok": FieldIndex.build(toks)})
 
 
 def build(mode: str) -> InvertedIndex:
@@ -50,6 +58,9 @@ def build(mode: str) -> InvertedIndex:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     add_mode_flags(ap)
-    mode = apply_mode(ap.parse_args())
-    build(mode).save(index_path(mode))
-    print("saved", index_path(mode))
+    ap.add_argument("--lucene", action="store_true", help="Lucene-style Hindi index for the sanity check")
+    args = ap.parse_args()
+    mode = apply_mode(args)
+    ix = build_lucene_index(load_corpus(mode)) if args.lucene else build(mode)
+    ix.save(index_path(mode, args.lucene))
+    print("saved", index_path(mode, args.lucene))

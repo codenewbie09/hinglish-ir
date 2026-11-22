@@ -3,4 +3,5 @@ mode=full: native-script BM25 on MIRACL-hi dev (350 queries)
   k1=1.2 b=0.75, stemming                    nDCG@10=0.372 Recall@100=0.788
   k1=0.9 b=0.4, no stemming (paper k1/b)     nDCG@10=0.381 Recall@100=0.789
   k1=0.9 b=0.4, stemming (paper k1/b)        nDCG@10=0.420 Recall@100=0.821
+  k1=0.9 b=0.4, Lucene Hindi analyser (port) nDCG@10=0.455 Recall@100=0.867
   MIRACL paper (Zhang et al. 2023), BM25 hi dev  nDCG@10=0.458 Recall@100=0.868 (Anserini, Lucene Hindi analyser, k1=0.9 b=0.4)

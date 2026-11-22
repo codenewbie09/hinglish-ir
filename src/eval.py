@@ -13,6 +13,7 @@ import pandas as pd
 
 from src.config import ROOT, load_config, path, seed_everything
 from src.data import add_mode_flags, apply_mode, load_corpus, load_qrels
+from src.bm25 import top_k
 from src.fusion import rrf
 from src.metrics import evaluate_run, randomisation_test
 from src.pipeline import DEFAULTS, SYSTEMS, Searcher, system_config
@@ -161,6 +162,15 @@ def plot_degradation(df, name, title):
 
 
 # ------------------------------------------------------------------ commands
+def lucene_search(searcher: Searcher, query: str, k: int = 100) -> list[str]:
+    """BM25 over the Lucene-style index, query analysed by the same Lucene chain."""
+    from src.lucene_hindi import analyse
+    from src.pipeline import QueryRepr
+
+    q = QueryRepr(raw=query, terms={"tok": [(t, 1.0) for t in analyse(query)]})
+    return [searcher.index.doc_ids[d] for d, _ in top_k(searcher.score(q, "bm25"), k)]
+
+
 def cmd_sanity(ev: Evaluator):
     """Native-script BM25 on dev: our default settings, and the MIRACL paper's k1/b."""
     from src.variants import queries_for
@@ -175,6 +185,15 @@ def cmd_sanity(ev: Evaluator):
     for label, searcher, system in setups:
         run = {q: [d for d, _ in searcher.search(t, system, 100)[1]] for q, t in qs.items()}
         m = ev.score(run, "dev")["mean"]
+        rows.append({"setup": label, **m})
+        lines.append(f"  {label:42s} nDCG@10={m['nDCG@10']:.3f} Recall@100={m['Recall@100']:.3f}")
+    from src.build_index import index_path
+    from src.index import InvertedIndex
+
+    if index_path(ev.mode, lucene=True).exists():  # make index-lucene
+        lu = Searcher(ev.mode, index=InvertedIndex.load(index_path(ev.mode, lucene=True)), k1=0.9, b=0.4)
+        label = "k1=0.9 b=0.4, Lucene Hindi analyser (port)"
+        m = ev.score({q: lucene_search(lu, t) for q, t in qs.items()}, "dev")["mean"]
         rows.append({"setup": label, **m})
         lines.append(f"  {label:42s} nDCG@10={m['nDCG@10']:.3f} Recall@100={m['Recall@100']:.3f}")
     lines.append("  MIRACL paper (Zhang et al. 2023), BM25 hi dev  nDCG@10=0.458 Recall@100=0.868"

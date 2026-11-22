@@ -15,6 +15,7 @@ make setup            # .venv (Python 3.12) + .venv-xlit (Python 3.10, IndicXlit
 cp .env.example .env  # add GROQ_API_KEY (only needed if the LLM caches are missing)
 make data             # download MIRACL-hi + build the sample corpus   (MODE=--full for 506k)
 make index            # inverted index (sample: ~10 s, full: ~70 s)
+make index-lucene     # optional: Lucene-style index, adds a row to the sanity check
 make variants         # query variants (cached in data/variants.jsonl -> no API calls)
 make eval             # all experiments -> results/
 make search           # CLI demo
@@ -82,7 +83,7 @@ All numbers are on the 350 MIRACL-hi **dev** queries. Weights were tuned on trai
 
 | file | content |
 |---|---|
-| `sanity_*.txt` | native BM25 vs the MIRACL paper |
+| `sanity_*.txt`, `sanity_*.csv` | native BM25 (our analyser, paper k1/b, Lucene analyser port) vs the MIRACL paper |
 | `main_nDCG10_*.csv`, `main_Recall100_*.csv`, `main_P10_*.csv`, `main_F110_*.csv`, `main_MRR10_*.csv` | systems × variants |
 | `main_long_*.csv` | every metric, long format |
 | `degradation_*.png`, `baseline_degradation_*.png` | metric vs code-mixing level |
@@ -121,12 +122,13 @@ All numbers are on the 350 MIRACL-hi **dev** queries. Weights were tuned on trai
    tags romanised Hindi as English and adds wrong Hindi words. Query-side stop-word removal
    also hurts slightly on most variants. A per-query decision on whether to expand is the
    obvious next step.
-7. **Sanity check.** Native BM25 on the full corpus (k1 = 1.2, b = 0.75, no stemming) gives
-   nDCG@10 0.334 against 0.458 in the MIRACL paper. The paper's k1 = 0.9, b = 0.4 alone
-   gives 0.381. Adding our stemmer gives 0.420 (Recall@100 0.821 vs 0.868). We attribute the
-   remaining gap to Lucene's Hindi analyser (normaliser, stemmer, stop words removed from
-   documents). This is plausible but was not tested. All four setups are in
-   `results/sanity_full.csv`. See Limitations.
+7. **Sanity check: our BM25 reproduces the MIRACL baseline.** Native BM25 on the full corpus
+   (k1 = 1.2, b = 0.75, no stemming) gives nDCG@10 0.334 against 0.458 in the MIRACL paper.
+   The paper's k1 = 0.9, b = 0.4 alone gives 0.381, and adding our stemmer gives 0.420. With a
+   port of Lucene's Hindi analyser (`src/lucene_hindi.py`: Indic + Hindi normaliser, Lucene's
+   stop words removed from documents too, Lucene's Hindi stemmer) the same BM25 code gives
+   **0.455 nDCG@10 / 0.867 Recall@100 vs the paper's 0.458 / 0.868**. The gap was the text
+   analysis, not the retrieval model. All setups are in `results/sanity_full.csv`.
 
 The tables below are generated from the CSVs by `scripts/render_results.py`.
 
@@ -141,6 +143,7 @@ mode=full: native-script BM25 on MIRACL-hi dev (350 queries)
   k1=1.2 b=0.75, stemming                    nDCG@10=0.372 Recall@100=0.788
   k1=0.9 b=0.4, no stemming (paper k1/b)     nDCG@10=0.381 Recall@100=0.789
   k1=0.9 b=0.4, stemming (paper k1/b)        nDCG@10=0.420 Recall@100=0.821
+  k1=0.9 b=0.4, Lucene Hindi analyser (port) nDCG@10=0.455 Recall@100=0.867
   MIRACL paper (Zhang et al. 2023), BM25 hi dev  nDCG@10=0.458 Recall@100=0.868 (Anserini, Lucene Hindi analyser, k1=0.9 b=0.4)
 ```
 
@@ -202,6 +205,7 @@ mode=sample: native-script BM25 on MIRACL-hi dev (350 queries)
   k1=1.2 b=0.75, stemming                    nDCG@10=0.495 Recall@100=0.913
   k1=0.9 b=0.4, no stemming (paper k1/b)     nDCG@10=0.482 Recall@100=0.888
   k1=0.9 b=0.4, stemming (paper k1/b)        nDCG@10=0.522 Recall@100=0.919
+  k1=0.9 b=0.4, Lucene Hindi analyser (port) nDCG@10=0.549 Recall@100=0.952
   MIRACL paper (Zhang et al. 2023), BM25 hi dev  nDCG@10=0.458 Recall@100=0.868 (Anserini, Lucene Hindi analyser, k1=0.9 b=0.4)
 ```
 
@@ -295,9 +299,10 @@ evaluation protocol (0003).
   are higher. Compare systems within one corpus, and use the full-corpus sanity check
   against the MIRACL paper.
 * **Tuning on 400 train queries**, not all 1,169 (API rate limits, ADR 0003).
-* **BM25 settings.** k1 = 1.2, b = 0.75 as specified. The MIRACL paper's Anserini setup
-  (k1 = 0.9, b = 0.4, Lucene Hindi analyser) scores higher on native queries; see the
-  sanity check.
+* **BM25 settings.** k1 = 1.2, b = 0.75 and our own analyser, as specified. The MIRACL
+  paper's Anserini setup (k1 = 0.9, b = 0.4, Lucene Hindi analyser) scores higher on native
+  queries; our port of it reproduces the paper's number (sanity check), but the experiments
+  keep the specified settings. The port uses our tokenizer, not Lucene's StandardTokenizer.
 
 ## AI use
 

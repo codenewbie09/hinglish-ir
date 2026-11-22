@@ -1,7 +1,7 @@
 PY    := .venv/bin/python
 MODE  ?= --sample          # make eval MODE=--full
 
-.PHONY: setup setup-xlit data variants index eval demo test search clean-results
+.PHONY: setup setup-xlit data variants index index-lucene eval demo test search clean-results
 
 setup:            ## main venv (Python 3.12) + optional IndicXlit venv
 	uv venv --python 3.12 .venv
@@ -21,6 +21,9 @@ variants:         ## LLM query variants (cached in data/variants.jsonl; needs GR
 
 index:
 	$(PY) -m src.build_index $(MODE)
+
+index-lucene:     ## Lucene-style Hindi index, only for the sanity check against the MIRACL paper
+	$(PY) -m src.build_index $(MODE) --lucene
 
 eval:             ## sanity, baseline curve, tuning (train), main table, ablation, significance, failures
 	$(PY) -m src.eval all $(MODE)
