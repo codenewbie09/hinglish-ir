@@ -21,6 +21,7 @@ make eval             # all experiments -> results/
 make search           # CLI demo
 make demo             # Streamlit app
 make test
+make zip              # dist/hinglish-ir.zip (code, caches, results, sample corpus)
 ```
 
 `--sample` (default) = every passage judged for train+dev queries + 50,000 random passages
@@ -108,7 +109,7 @@ All numbers are on the 350 MIRACL-hi **dev** queries. Weights were tuned on trai
 4. **Dense and lexical retrieval fail differently.** e5-small is the strongest single
    system on native queries (0.551) but degrades fastest with English mixing
    (0.105 at mix75, below full BM25's 0.161).
-5. **The hybrid is best on every non-native variant on both corpora** (full corpus:
+5. **The hybrid is best on every non-native variant on both corpora** (`hybrid+gate`, finding 8, adds a little more; full corpus:
    0.476 roman, 0.293 mix25, 0.196 mix75). On native queries dense-only is slightly
    ahead (0.551 vs 0.539). The fusion weight tuned on train (w_dense = 0.75) gives up a
    little native accuracy for robustness to code-mixing. The hybrid beats BM25 and the
@@ -120,8 +121,7 @@ All numbers are on the 350 MIRACL-hi **dev** queries. Weights were tuned on trai
    But expansion *hurts* pure-roman queries on the full corpus (removing it gives roman
    0.337 and roman_rule 0.299, against 0.330 and 0.274). The context-free lexicon sometimes
    tags romanised Hindi as English and adds wrong Hindi words. Query-side stop-word removal
-   also hurts slightly on most variants. A per-query decision on whether to expand is the
-   obvious next step.
+   also hurts slightly on most variants. Finding 8 tries a per-query fix.
 7. **Sanity check: our BM25 reproduces the MIRACL baseline.** Native BM25 on the full corpus
    (k1 = 1.2, b = 0.75, no stemming) gives nDCG@10 0.334 against 0.458 in the MIRACL paper.
    The paper's k1 = 0.9, b = 0.4 alone gives 0.381, and adding our stemmer gives 0.420. With a
@@ -129,6 +129,17 @@ All numbers are on the 350 MIRACL-hi **dev** queries. Weights were tuned on trai
    stop words removed from documents too, Lucene's Hindi stemmer) the same BM25 code gives
    **0.455 nDCG@10 / 0.867 Recall@100 vs the paper's 0.458 / 0.868**. The gap was the text
    analysis, not the retrieval model. All setups are in `results/sanity_full.csv`.
+
+8. **Expansion gate: deduplication helps a little, the df gate not at all (ADR 0005).**
+   Many "English" tokens in roman queries are loanwords whose Hindi equivalent is just
+   their transliteration (film → फिल्म), so expansion counted them twice. Dropping such
+   duplicates (`full+gate`, `hybrid+gate`, tuned on train) never hurts. On the full corpus
+   it lifts the hybrid by +0.024 / +0.015 / +0.013 nDCG@10 on mix25/50/75 (p = 0.001 / 0.04
+   / 0.04, uncorrected), and BM25 Recall@100 by +0.03 to +0.04 on mix25/50. It does **not**
+   fix the roman loss from finding 6 (+0.003, not significant). The cause there is
+   wrong senses from the context-free lexicon (congress → संसद), which needs query context.
+   A document-frequency gate (skip expansion when the transliteration is already common)
+   gave no gain on train and was not adopted.
 
 The tables below are generated from the CSVs by `scripts/render_results.py`.
 
@@ -156,8 +167,10 @@ mode=full: native-script BM25 on MIRACL-hi dev (350 queries)
 | +phonetic | 0.354 | 0.312 | 0.152 | 0.115 | 0.112 | 0.280 |
 | +expansion | 0.356 | 0.305 | 0.182 | 0.143 | 0.145 | 0.254 |
 | full | 0.391 | 0.330 | 0.204 | 0.166 | 0.161 | 0.274 |
+| full+gate | 0.391 | 0.333 | 0.210 | 0.169 | 0.164 | 0.277 |
 | dense | **0.551** | 0.402 | 0.216 | 0.145 | 0.105 | 0.309 |
-| hybrid | 0.539 | **0.476** | **0.293** | **0.230** | **0.196** | **0.393** |
+| hybrid | 0.539 | 0.476 | 0.293 | 0.230 | 0.196 | 0.393 |
+| hybrid+gate | 0.539 | **0.477** | **0.317** | **0.244** | **0.210** | **0.394** |
 
 **Recall@100** (best per column in bold)
 
@@ -168,8 +181,10 @@ mode=full: native-script BM25 on MIRACL-hi dev (350 queries)
 | +phonetic | 0.783 | 0.734 | 0.429 | 0.349 | 0.327 | 0.677 |
 | +expansion | 0.783 | 0.734 | 0.564 | 0.518 | 0.508 | 0.662 |
 | full | 0.834 | 0.770 | 0.595 | 0.546 | 0.534 | 0.703 |
+| full+gate | 0.834 | 0.783 | 0.625 | 0.582 | 0.553 | 0.706 |
 | dense | 0.895 | 0.750 | 0.488 | 0.361 | 0.292 | 0.656 |
-| hybrid | **0.936** | **0.857** | **0.658** | **0.596** | **0.549** | **0.814** |
+| hybrid | **0.936** | 0.857 | 0.658 | 0.596 | 0.549 | 0.814 |
+| hybrid+gate | **0.936** | **0.865** | **0.681** | **0.604** | **0.553** | **0.816** |
 
 ![degradation](results/degradation_full.png)
 
@@ -192,6 +207,8 @@ mode=full: native-script BM25 on MIRACL-hi dev (350 queries)
 | hybrid vs bm25 | +0.206 (p=0.0001) | +0.475 (p=0.0001) | +0.292 (p=0.0001) | +0.228 (p=0.0001) | +0.193 (p=0.0001) | +0.393 (p=0.0001) |
 | hybrid vs dense | -0.012 (p=0.4868) | +0.074 (p=0.0006) | +0.077 (p=0.0001) | +0.084 (p=0.0001) | +0.091 (p=0.0001) | +0.084 (p=0.0001) |
 | hybrid vs full | +0.149 (p=0.0001) | +0.146 (p=0.0001) | +0.089 (p=0.0001) | +0.064 (p=0.0001) | +0.035 (p=0.0001) | +0.119 (p=0.0001) |
+| full+gate vs full | +0.000 (p=1.0000) | +0.003 (p=0.5478) | +0.006 (p=0.3965) | +0.004 (p=0.5344) | +0.003 (p=0.6068) | +0.003 (p=0.2174) |
+| hybrid+gate vs hybrid | +0.000 (p=1.0000) | +0.002 (p=0.6996) | +0.024 (p=0.0011) | +0.015 (p=0.0375) | +0.013 (p=0.0367) | +0.001 (p=0.7157) |
 
 Other metrics (P@5, P@10, F1@10, MRR@10, R@10): `results/main_long_full.csv`. Failure analysis: `results/failures_full.md`.
 
@@ -218,8 +235,10 @@ mode=sample: native-script BM25 on MIRACL-hi dev (350 queries)
 | +phonetic | 0.478 | 0.443 | 0.264 | 0.200 | 0.193 | 0.406 |
 | +expansion | 0.480 | 0.436 | 0.311 | 0.266 | 0.259 | 0.398 |
 | full | 0.513 | 0.468 | 0.328 | 0.287 | 0.284 | 0.433 |
+| full+gate | 0.513 | 0.471 | 0.339 | 0.301 | 0.293 | 0.432 |
 | dense | **0.642** | 0.531 | 0.331 | 0.239 | 0.168 | 0.449 |
-| hybrid | 0.636 | **0.591** | **0.462** | **0.399** | **0.363** | **0.534** |
+| hybrid | 0.636 | 0.591 | 0.462 | 0.399 | 0.363 | **0.534** |
+| hybrid+gate | 0.636 | **0.594** | **0.473** | **0.413** | **0.376** | 0.533 |
 
 **Recall@100** (best per column in bold)
 
@@ -230,8 +249,10 @@ mode=sample: native-script BM25 on MIRACL-hi dev (350 queries)
 | +phonetic | 0.891 | 0.863 | 0.593 | 0.503 | 0.463 | 0.835 |
 | +expansion | 0.891 | 0.865 | 0.785 | 0.770 | 0.746 | 0.828 |
 | full | 0.924 | 0.903 | 0.820 | 0.790 | 0.766 | 0.856 |
+| full+gate | 0.924 | 0.902 | 0.827 | 0.799 | 0.777 | 0.859 |
 | dense | 0.971 | 0.880 | 0.648 | 0.525 | 0.454 | 0.814 |
-| hybrid | **0.989** | **0.968** | **0.851** | **0.807** | **0.774** | **0.946** |
+| hybrid | **0.989** | **0.968** | 0.851 | 0.807 | 0.774 | **0.946** |
+| hybrid+gate | **0.989** | **0.968** | **0.862** | **0.815** | **0.789** | **0.946** |
 
 ![degradation](results/degradation_sample.png)
 
@@ -254,6 +275,8 @@ mode=sample: native-script BM25 on MIRACL-hi dev (350 queries)
 | hybrid vs bm25 | +0.175 (p=0.0001) | +0.586 (p=0.0001) | +0.454 (p=0.0001) | +0.390 (p=0.0001) | +0.354 (p=0.0001) | +0.532 (p=0.0001) |
 | hybrid vs dense | -0.006 (p=0.6666) | +0.059 (p=0.0011) | +0.131 (p=0.0001) | +0.160 (p=0.0001) | +0.195 (p=0.0001) | +0.086 (p=0.0001) |
 | hybrid vs full | +0.123 (p=0.0001) | +0.123 (p=0.0001) | +0.134 (p=0.0001) | +0.111 (p=0.0001) | +0.079 (p=0.0001) | +0.101 (p=0.0001) |
+| full+gate vs full | +0.000 (p=1.0000) | +0.003 (p=0.6079) | +0.012 (p=0.0964) | +0.013 (p=0.0596) | +0.009 (p=0.1876) | -0.001 (p=0.7498) |
+| hybrid+gate vs hybrid | +0.000 (p=1.0000) | +0.003 (p=0.5275) | +0.011 (p=0.0206) | +0.014 (p=0.0129) | +0.013 (p=0.0147) | -0.002 (p=0.5881) |
 
 Other metrics (P@5, P@10, F1@10, MRR@10, R@10): `results/main_long_sample.csv`. Failure analysis: `results/failures_sample.md`.
 <!-- results:end -->
@@ -274,12 +297,15 @@ and shows a warning.
 ## Tests
 
 `make test`: BM25 against the formula on a toy corpus, score breakdown, phonetic key
-merges/separations, script detection and tokenisation, metrics, RRF, normalisation.
+merges/separations, script detection and tokenisation, metrics, RRF, normalisation and the
+expansion gate, the Lucene analyser port, the significance helper, the mixing-level check,
+the ZIP contents, and (with fakes, no network or model) variant parsing, the transliteration
+cache and dense reranking. The Streamlit app is driven headlessly when the sample index exists.
 
 ## Design decisions
 
 `docs/adr/`: LLM provider/models (0001), IndicXlit in a separate Python 3.10 venv (0002),
-evaluation protocol (0003).
+evaluation protocol (0003), merging without the summary (0004), expansion gate (0005).
 
 ## Limitations and threats to validity
 

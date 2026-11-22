@@ -1,6 +1,6 @@
 """Experiments. Writes CSV/PNG/MD to results/.
 
-    python -m src.eval sanity|baseline|tune|main|significance|examples|all [--sample|--full]
+    python -m src.eval sanity|baseline|tune|tune-gate|main|significance|examples|all [--sample|--full]
 """
 from __future__ import annotations
 
@@ -88,6 +88,8 @@ class Evaluator:
             return self.dense_run(split, variant, tuned().get("hybrid", {}).get("dense_text", "raw"))
         if system == "hybrid":
             return self.hybrid_run(split, variant)
+        if system == "hybrid+gate":
+            return self.hybrid_run(split, variant, bm25_cfg=system_config("full+gate"))
         return self.bm25_run(system, split, variant)
 
     def score(self, run, split):
@@ -110,7 +112,8 @@ def _table(ev: Evaluator, systems, variants, split="dev"):
 
 
 # system vs baseline pairs for the paired randomisation test
-SIG_PAIRS = [("full", "bm25"), ("hybrid", "bm25"), ("hybrid", "dense"), ("hybrid", "full")]
+SIG_PAIRS = [("full", "bm25"), ("hybrid", "bm25"), ("hybrid", "dense"), ("hybrid", "full"),
+             ("full+gate", "full"), ("hybrid+gate", "hybrid")]
 
 
 def significance_rows(per_q, pairs, variants, metrics=("nDCG@10", "Recall@100")) -> list[dict]:
@@ -249,8 +252,30 @@ def cmd_tune(ev: Evaluator):
     print("tuned:", out)
 
 
+def cmd_tune_gate(ev: Evaluator):
+    """Expansion gate on top of the tuned pipeline weights; same train objective as cmd_tune."""
+    base = system_config("full")
+    log, scores = [], {}
+    for dedupe in [False, True]:
+        for ratio in [0.0, 0.1, 0.25, 0.5, 1.0, 2.0]:
+            cfg = {**base, "expansion_dedupe": dedupe, "expansion_gate_ratio": ratio}
+            per = {v: ev.score(ev.bm25_run(cfg, "train", v), "train")["mean"]["nDCG@10"] for v in LEVELS}
+            scores[(dedupe, ratio)] = float(np.mean(list(per.values())))
+            log.append({"expansion_dedupe": dedupe, "expansion_gate_ratio": ratio,
+                        "objective": scores[(dedupe, ratio)], **per})
+            print(f"  dedupe={dedupe} ratio={ratio}: {scores[(dedupe, ratio)]:.4f} {per}", flush=True)
+    # simplest setting within 0.001 of the best (no gate < gate; no dedupe < dedupe)
+    best = max(scores.values())
+    dedupe, ratio = min((k for k, v in scores.items() if v >= best - 0.001),
+                        key=lambda k: (k[1] > 0, k[0]))
+    out = {**tuned(), "gate": {"expansion_dedupe": dedupe, "expansion_gate_ratio": ratio}}
+    TUNED_PATH.write_text(json.dumps(out, indent=2))
+    _save(pd.DataFrame(log), f"tuning_gate_{ev.mode}.csv")
+    print("gate:", out["gate"])
+
+
 def cmd_main(ev: Evaluator):
-    systems = list(SYSTEMS) + ["dense", "hybrid"]
+    systems = list(SYSTEMS) + ["dense", "hybrid", "hybrid+gate"]
     df, per_q = _table(ev, systems, ALL_VARIANTS)
     _save(df.set_index(["system", "variant"]), f"main_long_{ev.mode}.csv")
     for m in ["nDCG@10", "Recall@100", "P@10", "F1@10", "MRR@10"]:
@@ -325,7 +350,7 @@ def cmd_examples():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["sanity", "baseline", "tune", "main", "significance", "examples", "all"])
+    ap.add_argument("cmd", choices=["sanity", "baseline", "tune", "main", "significance", "tune-gate", "examples", "all"])
     add_mode_flags(ap)
     args = ap.parse_args()
     mode = apply_mode(args)
@@ -340,6 +365,8 @@ def main():
         cmd_baseline(ev)
     if args.cmd in ("tune", "all") and (args.cmd == "tune" or not TUNED_PATH.exists()):
         cmd_tune(ev)
+    if args.cmd == "tune-gate":
+        cmd_tune_gate(ev)
     if args.cmd == "significance":
         cmd_significance(ev)
     if args.cmd in ("main", "all"):

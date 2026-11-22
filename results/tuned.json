@@ -12,5 +12,9 @@
   },
   "objective": "mean train nDCG@10 over native,roman,mix25,mix50,mix75",
   "train_queries": 400,
-  "mode": "sample"
+  "mode": "sample",
+  "gate": {
+    "expansion_dedupe": true,
+    "expansion_gate_ratio": 0.0
+  }
 }

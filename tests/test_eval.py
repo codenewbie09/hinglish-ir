@@ -26,3 +26,16 @@ def test_significance_identical_systems_is_not_significant():
     per_q = {("a", "native"): _pq([0.3, 0.5, 0.7]), ("b", "native"): _pq([0.3, 0.5, 0.7])}
     (r,) = significance_rows(per_q, [("a", "b")], ["native"], ["Recall@100"])
     assert r["delta"] == 0 and r["p_value"] == 1.0
+
+
+def test_full_gate_differs_from_full_only_in_gate_settings():
+    from src.pipeline import system_config
+
+    full, gate = system_config("full"), system_config("full+gate")
+    assert {k for k in full if full[k] != gate[k]} <= {"expansion_dedupe", "expansion_gate_ratio"}
+
+
+def test_gated_systems_are_tested_against_their_ungated_versions():
+    from src.eval import SIG_PAIRS
+
+    assert ("full+gate", "full") in SIG_PAIRS and ("hybrid+gate", "hybrid") in SIG_PAIRS

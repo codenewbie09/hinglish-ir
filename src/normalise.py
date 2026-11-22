@@ -112,8 +112,33 @@ def prefetch(queries: list[str], cfg: dict) -> None:
 
 
 # ---------------------------------------------------------------- per token
-def normalise_token(tok: str, cfg: dict) -> dict:
-    """Per-token trace + weighted Devanagari/Latin terms it contributes to the query."""
+def _phrase_df(phrase: str, df) -> int:
+    """df of a (possibly multi-word) expansion: its rarest word."""
+    from src.text import tokenize
+
+    return min((df(w) or 0 for w in tokenize(phrase)), default=0)
+
+
+def gate_expansion(translit: str | None, hindi: list[str], cfg: dict, df=None) -> tuple[list[str], bool]:
+    """Exact rules deciding which Hindi equivalents to add (both off by default, tuned on train):
+    expansion_dedupe     - drop an equivalent identical to the transliteration (loanwords:
+                           film -> फिल्म) so the same term is not counted twice
+    expansion_gate_ratio - drop all equivalents if df(translit) >= ratio * df(best equivalent):
+                           the token already matches a well-attested Devanagari word, so it is
+                           more likely a name / loanword / romanised Hindi than English to translate
+    Returns (kept equivalents, gated)."""
+    if cfg.get("expansion_dedupe") and translit:
+        hindi = [h for h in hindi if h != translit]
+    ratio = cfg.get("expansion_gate_ratio") or 0
+    if ratio and df is not None and translit and hindi:
+        if (df(translit) or 0) >= ratio * max(_phrase_df(h, df) for h in hindi):
+            return [], True
+    return hindi, False
+
+
+def normalise_token(tok: str, cfg: dict, df=None) -> dict:
+    """Per-token trace + weighted Devanagari/Latin terms it contributes to the query.
+    df: document frequency lookup of the main index (only the expansion gate uses it)."""
     script = detect_script(tok)
     info = {"token": tok, "script": script, "translit": None, "english": None,
             "expansion": [], "terms": [(tok, 1.0)]}
@@ -144,8 +169,11 @@ def normalise_token(tok: str, cfg: dict) -> dict:
             info["warning"] = f"expansion unavailable ({type(ex).__name__})"
         info["english"] = e["english"]
         if e["english"]:
-            info["expansion"] = e["hindi"]
-            terms += [(h, cfg.get("expansion_weight", 0.5)) for h in e["hindi"]]
+            hindi, gated = gate_expansion(info["translit"], e["hindi"], cfg, df)
+            if gated:
+                info["gated"] = True
+            info["expansion"] = hindi
+            terms += [(h, cfg.get("expansion_weight", 0.5)) for h in hindi]
             keep_latin = max(keep_latin, cfg.get("english_keep_weight", 1.0))
     if keep_latin:
         terms.append((tok, keep_latin))

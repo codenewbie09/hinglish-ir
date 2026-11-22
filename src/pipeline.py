@@ -23,6 +23,8 @@ SYSTEMS: dict[str, dict] = {
     "+phonetic": {"translit": True, "phonetic": True},
     "+expansion": {"translit": True, "phonetic": True, "expansion": True},
     "full": {"translit": True, "phonetic": True, "expansion": True, "stemming": True},
+    # full + expansion gate settings from results/tuned.json["gate"] (fitted on train)
+    "full+gate": {"translit": True, "phonetic": True, "expansion": True, "stemming": True},
 }
 DEFAULTS = {
     "translit": False, "phonetic": False, "expansion": False, "stemming": False,
@@ -32,6 +34,8 @@ DEFAULTS = {
     "expansion_weight": 0.5,   # Hindi equivalent of an English token
     "english_keep_weight": 1.0,  # original token when the lexicon says it is English
     "translit_top2_weight": 0.0,  # second IndicXlit candidate
+    "expansion_dedupe": False,    # see normalise.gate_expansion
+    "expansion_gate_ratio": 0.0,  # 0 = off
 }
 
 
@@ -46,6 +50,8 @@ def system_config(name_or_cfg) -> dict:
     if tuned.exists():
         cfg.update(json.loads(tuned.read_text()).get("pipeline", {}))
     cfg.update(SYSTEMS[name_or_cfg] if isinstance(name_or_cfg, str) else name_or_cfg)
+    if name_or_cfg == "full+gate" and tuned.exists():
+        cfg.update(json.loads(tuned.read_text()).get("gate", {}))
     return cfg
 
 
@@ -96,7 +102,7 @@ class Searcher:
                 q.add("phon", phonetic_key(term), w)
 
         for tok in toks:
-            info = normalise.normalise_token(tok, cfg)
+            info = normalise.normalise_token(tok, cfg, df=self.index.fields["tok"].df)
             q.tokens.append(info)
             for term, w in info["terms"]:
                 for sub in text.tokenize(term):  # expansions may be multi-word
