@@ -21,7 +21,7 @@ make eval             # all experiments -> results/
 make search           # CLI demo
 make demo             # Streamlit app
 make test
-make zip              # dist/hinglish-ir.zip (code, caches, results, sample corpus)
+make zip              # submission ZIP in dist/ (report, code, results, caches, sample data)
 ```
 
 `--sample` (default) = every passage judged for train+dev queries + 50,000 random passages

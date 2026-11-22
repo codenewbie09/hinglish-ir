@@ -37,5 +37,5 @@ search:
 test:
 	$(PY) -m pytest -q
 
-zip:              ## dist/hinglish-ir.zip: code, caches, results, sample corpus (no indexes)
+zip:              ## dist/CSD358_PrateekAgrawal_RuchirKalla_AbhinavJoshi.zip: report, code, results, caches, sample data
 	$(PY) scripts/make_zip.py
