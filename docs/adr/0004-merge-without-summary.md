@@ -18,3 +18,10 @@ without the summary. This is a one-off exception; the principle itself is unchan
 - Follow-up: write the summary after the deadline and record it here. The README
   "Key findings" and ADRs 0001–0003 are the starting points.
 - Revisit if exceptions repeat: then the rule, or the deadline planning, needs changing.
+
+## 2026-11-22: second exception
+At the author's explicit request, `build` was fast-forwarded into `main` again without the
+summary. This adds the Lucene analyser sanity check, hybrid-vs-dense significance, the
+measured mixing levels, the expansion gate (ADR 0005), more tests and `make zip`.
+This is the repeat that the "Revisit" line above warns about. Before the next merge, either
+write the summary (it is now owed for both merges) or change principle 8 deliberately.
