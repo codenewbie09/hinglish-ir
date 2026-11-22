@@ -1,6 +1,6 @@
 """Experiments. Writes CSV/PNG/MD to results/.
 
-    python -m src.eval sanity|baseline|components|tune|main|all [--sample|--full]
+    python -m src.eval sanity|baseline|tune|main|significance|examples|all [--sample|--full]
 """
 from __future__ import annotations
 
@@ -106,6 +106,26 @@ def _table(ev: Evaluator, systems, variants, split="dev"):
             print(f"  {sysn:12s} {v:10s} nDCG@10={r['mean']['nDCG@10']:.3f} "
                   f"R@100={r['mean']['Recall@100']:.3f} ({time.time()-t0:.1f}s)", flush=True)
     return pd.DataFrame(rows), per_q
+
+
+# system vs baseline pairs for the paired randomisation test
+SIG_PAIRS = [("full", "bm25"), ("hybrid", "bm25"), ("hybrid", "dense"), ("hybrid", "full")]
+
+
+def significance_rows(per_q, pairs, variants, metrics=("nDCG@10", "Recall@100")) -> list[dict]:
+    """Paired randomisation test per (system, baseline, variant, metric) on shared queries."""
+    rows = []
+    for sysn, base in pairs:
+        for v in variants:
+            a, b = per_q[(sysn, v)], per_q[(base, v)]
+            qs = sorted(a.keys() & b.keys())
+            for m in metrics:
+                xa, xb = [a[q][m] for q in qs], [b[q][m] for q in qs]
+                rows.append({"system": sysn, "vs": base, "variant": v, "metric": m,
+                             "mean_system": float(np.mean(xa)), "mean_vs": float(np.mean(xb)),
+                             "delta": float(np.mean(xa) - np.mean(xb)),
+                             "p_value": randomisation_test(xa, xb)})
+    return rows
 
 
 def _pivot(df, metric):
@@ -232,19 +252,17 @@ def cmd_main(ev: Evaluator):
     _save(ab.pivot(index="ablation", columns="variant", values="nDCG@10")[ALL_VARIANTS],
           f"ablation_nDCG10_{ev.mode}.csv")
 
-    # significance: paired randomisation test vs BM25 baseline
-    sig = []
-    for other in ["full", "hybrid"]:
-        for v in ALL_VARIANTS:
-            for m in ["nDCG@10", "Recall@100"]:
-                a, b = per_q[(other, v)], per_q[("bm25", v)]
-                qs = sorted(a)
-                xa, xb = [a[q][m] for q in qs], [b[q][m] for q in qs]
-                sig.append({"system": other, "vs": "bm25", "variant": v, "metric": m,
-                            "mean_system": np.mean(xa), "mean_bm25": np.mean(xb),
-                            "delta": np.mean(xa) - np.mean(xb), "p_value": randomisation_test(xa, xb)})
-    _save(pd.DataFrame(sig), f"significance_{ev.mode}.csv")
+    _save(pd.DataFrame(significance_rows(per_q, SIG_PAIRS, ALL_VARIANTS)),
+          f"significance_{ev.mode}.csv")
     cmd_failures(ev, per_q)
+
+
+def cmd_significance(ev: Evaluator):
+    """Only the significance table (reuses cached runs; no full main table)."""
+    systems = list(dict.fromkeys(x for pair in SIG_PAIRS for x in pair))
+    _, per_q = _table(ev, systems, ALL_VARIANTS)
+    _save(pd.DataFrame(significance_rows(per_q, SIG_PAIRS, ALL_VARIANTS)),
+          f"significance_{ev.mode}.csv")
 
 
 def cmd_failures(ev: Evaluator, per_q, n=15):
@@ -288,7 +306,7 @@ def cmd_examples():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["sanity", "baseline", "tune", "main", "examples", "all"])
+    ap.add_argument("cmd", choices=["sanity", "baseline", "tune", "main", "significance", "examples", "all"])
     add_mode_flags(ap)
     args = ap.parse_args()
     mode = apply_mode(args)
@@ -303,6 +321,8 @@ def main():
         cmd_baseline(ev)
     if args.cmd in ("tune", "all") and (args.cmd == "tune" or not TUNED_PATH.exists()):
         cmd_tune(ev)
+    if args.cmd == "significance":
+        cmd_significance(ev)
     if args.cmd in ("main", "all"):
         cmd_examples()
         cmd_main(ev)

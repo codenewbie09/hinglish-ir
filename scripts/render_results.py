@@ -26,10 +26,12 @@ def table(csv: Path, index: str) -> str:
 def significance(csv: Path) -> str:
     df = pd.read_csv(csv)
     df = df[df.metric == "nDCG@10"]
-    out = "| system vs bm25 | " + " | ".join(COLS) + " |\n|---|" + "---|" * len(COLS) + "\n"
-    for s, g in df.groupby("system", sort=False):
+    if "vs" not in df:  # older CSVs compared everything against bm25
+        df = df.assign(vs="bm25")
+    out = "| system vs baseline | " + " | ".join(COLS) + " |\n|---|" + "---|" * len(COLS) + "\n"
+    for (s, vs), g in df.groupby(["system", "vs"], sort=False):
         g = g.set_index("variant")
-        out += f"| {s} | " + " | ".join(
+        out += f"| {s} vs {vs} | " + " | ".join(
             f"{g.loc[c, 'delta']:+.3f} (p={g.loc[c, 'p_value']:.4f})" for c in COLS) + " |\n"
     return out
 
@@ -49,7 +51,7 @@ def section(mode: str, title: str) -> str:
     parts.append("**Ablation, nDCG@10** (full pipeline minus one component)\n\n"
                  + (table(f, "ablation") if f.exists() else "_pending_\n"))
     f = RES / f"significance_{mode}.csv"
-    parts.append("**Paired randomisation test, nDCG@10 delta vs BM25** (10,000 permutations)\n\n"
+    parts.append("**Paired randomisation test, nDCG@10 delta** (10,000 permutations; p=0.0001 is the smallest reportable value)\n\n"
                  + (significance(f) if f.exists() else "_pending_\n"))
     parts.append(f"Other metrics (P@5, P@10, F1@10, MRR@10, R@10): `results/main_long_{mode}.csv`. "
                  f"Failure analysis: `results/failures_{mode}.md`.\n")

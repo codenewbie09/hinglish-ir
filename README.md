@@ -87,7 +87,7 @@ All numbers are on the 350 MIRACL-hi **dev** queries. Weights were tuned on trai
 | `main_long_*.csv` | every metric, long format |
 | `degradation_*.png`, `baseline_degradation_*.png` | metric vs code-mixing level |
 | `ablation_nDCG10_*.csv`, `ablation_long_*.csv` | full pipeline minus one component |
-| `significance_*.csv` | paired randomisation test (10k permutations) vs BM25 |
+| `significance_*.csv` | paired randomisation test (10k permutations): full vs BM25, hybrid vs BM25 / dense / full |
 | `failures_*.md` | 15 queries the pipeline still fails, with the normalised query |
 | `tuning_*.csv`, `tuned.json` | train-set tuning log and chosen weights |
 | `variant_examples.md` | example variants per level |
@@ -109,8 +109,10 @@ All numbers are on the 350 MIRACL-hi **dev** queries. Weights were tuned on trai
 5. **The hybrid is best on every non-native variant on both corpora** (full corpus:
    0.476 roman, 0.293 mix25, 0.196 mix75). On native queries dense-only is slightly
    ahead (0.551 vs 0.539). The fusion weight tuned on train (w_dense = 0.75) gives up a
-   little native accuracy for robustness to code-mixing. The hybrid's gain over BM25 is
-   significant on every variant (p < 0.001). Hybrid vs dense was not tested.
+   little native accuracy for robustness to code-mixing. The hybrid beats BM25 and the
+   full pipeline on every variant (p < 0.001), and beats dense-only on every non-native
+   variant (full corpus: +0.07 to +0.09 nDCG@10, p ≤ 0.001). On native queries the
+   difference to dense-only (−0.012) is not significant (p = 0.49).
 6. **Not every component helps everywhere (ablation).** Transliteration is essential: without
    it, roman drops from 0.330 to 0.029. Stemming and phonetic keys help on every variant.
    But expansion *hurts* pure-roman queries on the full corpus (removing it gives roman
@@ -178,12 +180,14 @@ mode=full: native-script BM25 on MIRACL-hi dev (350 queries)
 | full - stopwords | **0.403** | 0.337 | **0.215** | **0.169** | 0.152 | 0.273 |
 | full - translit | 0.391 | 0.029 | 0.062 | 0.078 | 0.082 | 0.006 |
 
-**Paired randomisation test, nDCG@10 delta vs BM25** (10,000 permutations)
+**Paired randomisation test, nDCG@10 delta** (10,000 permutations; p=0.0001 is the smallest reportable value)
 
-| system vs bm25 | native | roman | mix25 | mix50 | mix75 | roman_rule |
+| system vs baseline | native | roman | mix25 | mix50 | mix75 | roman_rule |
 |---|---|---|---|---|---|---|
-| full | +0.057 (p=0.0001) | +0.329 (p=0.0001) | +0.203 (p=0.0001) | +0.164 (p=0.0001) | +0.158 (p=0.0001) | +0.274 (p=0.0001) |
-| hybrid | +0.206 (p=0.0001) | +0.475 (p=0.0001) | +0.292 (p=0.0001) | +0.228 (p=0.0001) | +0.193 (p=0.0001) | +0.393 (p=0.0001) |
+| full vs bm25 | +0.057 (p=0.0001) | +0.329 (p=0.0001) | +0.203 (p=0.0001) | +0.164 (p=0.0001) | +0.158 (p=0.0001) | +0.274 (p=0.0001) |
+| hybrid vs bm25 | +0.206 (p=0.0001) | +0.475 (p=0.0001) | +0.292 (p=0.0001) | +0.228 (p=0.0001) | +0.193 (p=0.0001) | +0.393 (p=0.0001) |
+| hybrid vs dense | -0.012 (p=0.4868) | +0.074 (p=0.0006) | +0.077 (p=0.0001) | +0.084 (p=0.0001) | +0.091 (p=0.0001) | +0.084 (p=0.0001) |
+| hybrid vs full | +0.149 (p=0.0001) | +0.146 (p=0.0001) | +0.089 (p=0.0001) | +0.064 (p=0.0001) | +0.035 (p=0.0001) | +0.119 (p=0.0001) |
 
 Other metrics (P@5, P@10, F1@10, MRR@10, R@10): `results/main_long_full.csv`. Failure analysis: `results/failures_full.md`.
 
@@ -237,12 +241,14 @@ mode=sample: native-script BM25 on MIRACL-hi dev (350 queries)
 | full - stopwords | **0.518** | **0.476** | **0.343** | **0.293** | 0.273 | **0.439** |
 | full - translit | 0.513 | 0.070 | 0.141 | 0.174 | 0.180 | 0.014 |
 
-**Paired randomisation test, nDCG@10 delta vs BM25** (10,000 permutations)
+**Paired randomisation test, nDCG@10 delta** (10,000 permutations; p=0.0001 is the smallest reportable value)
 
-| system vs bm25 | native | roman | mix25 | mix50 | mix75 | roman_rule |
+| system vs baseline | native | roman | mix25 | mix50 | mix75 | roman_rule |
 |---|---|---|---|---|---|---|
-| full | +0.052 (p=0.0001) | +0.463 (p=0.0001) | +0.320 (p=0.0001) | +0.279 (p=0.0001) | +0.275 (p=0.0001) | +0.430 (p=0.0001) |
-| hybrid | +0.175 (p=0.0001) | +0.586 (p=0.0001) | +0.454 (p=0.0001) | +0.390 (p=0.0001) | +0.354 (p=0.0001) | +0.532 (p=0.0001) |
+| full vs bm25 | +0.052 (p=0.0001) | +0.463 (p=0.0001) | +0.320 (p=0.0001) | +0.279 (p=0.0001) | +0.275 (p=0.0001) | +0.430 (p=0.0001) |
+| hybrid vs bm25 | +0.175 (p=0.0001) | +0.586 (p=0.0001) | +0.454 (p=0.0001) | +0.390 (p=0.0001) | +0.354 (p=0.0001) | +0.532 (p=0.0001) |
+| hybrid vs dense | -0.006 (p=0.6666) | +0.059 (p=0.0011) | +0.131 (p=0.0001) | +0.160 (p=0.0001) | +0.195 (p=0.0001) | +0.086 (p=0.0001) |
+| hybrid vs full | +0.123 (p=0.0001) | +0.123 (p=0.0001) | +0.134 (p=0.0001) | +0.111 (p=0.0001) | +0.079 (p=0.0001) | +0.101 (p=0.0001) |
 
 Other metrics (P@5, P@10, F1@10, MRR@10, R@10): `results/main_long_sample.csv`. Failure analysis: `results/failures_sample.md`.
 <!-- results:end -->
