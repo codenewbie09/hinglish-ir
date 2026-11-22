@@ -25,3 +25,8 @@ summary. This adds the Lucene analyser sanity check, hybrid-vs-dense significanc
 measured mixing levels, the expansion gate (ADR 0005), more tests and `make zip`.
 This is the repeat that the "Revisit" line above warns about. Before the next merge, either
 write the summary (it is now owed for both merges) or change principle 8 deliberately.
+
+## 2026-11-22: third exception, `build` retired
+At the author's request `build` was merged into `main` again without the summary, and the
+`build` branch was deleted locally and on GitHub; work continues on `main`. The summary is
+now owed for all three merges.
