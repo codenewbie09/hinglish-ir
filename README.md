@@ -91,6 +91,7 @@ All numbers are on the 350 MIRACL-hi **dev** queries. Weights were tuned on trai
 | `failures_*.md` | 15 queries the pipeline still fails, with the normalised query |
 | `tuning_*.csv`, `tuned.json` | train-set tuning log and chosen weights |
 | `variant_examples.md` | example variants per level |
+| `mix_ratio.csv` | measured code-mixing level per variant (target vs actual) |
 
 ### Key findings
 
@@ -282,8 +283,12 @@ evaluation protocol (0003).
   queries. To reduce circularity, variants come from `gpt-oss-120b`, transliteration from
   IndicXlit (a separate seq2seq model) and the lexicon from `gpt-oss-20b`. `roman_rule`
   is a deterministic check that involves no LLM.
-* **Mixing levels are approximate.** The LLM was asked for ~25/50/75 % English content
-  words; the actual ratio per query was not verified token by token.
+* **Mixing levels are compressed.** The LLM was asked for ~25/50/75 % English content
+  words. Measured on dev (`python -m src.mixcheck` → `results/mix_ratio.csv`, exact token
+  diff against the roman variant), mix25/50/75 replace on average 43/61/70 % of content
+  words (medians 38/60/71 %). mix25 overshoots and mix75 undershoots, which is part of why
+  mix50 and mix75 score so close together. Read the levels as an ordering, not as exact
+  percentages.
 * **Context-free lexicon.** Each Latin token is looked up on its own, so ambiguous tokens
   (`me`, `ira`) can be mis-expanded. Example: "ira" → आईआरए (the Irish Republican Army).
 * **Sample corpus is easier** than the full corpus (fewer distractors), so sample numbers
