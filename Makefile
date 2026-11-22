@@ -1,7 +1,7 @@
 PY    := .venv/bin/python
 MODE  ?= --sample          # make eval MODE=--full
 
-.PHONY: setup setup-xlit data variants index index-lucene eval demo test search clean-results
+.PHONY: setup setup-xlit data variants index index-lucene eval demo test search zip clean-results
 
 setup:            ## main venv (Python 3.12) + optional IndicXlit venv
 	uv venv --python 3.12 .venv
@@ -36,3 +36,6 @@ search:
 
 test:
 	$(PY) -m pytest -q
+
+zip:              ## dist/hinglish-ir.zip: code, caches, results, sample corpus (no indexes)
+	$(PY) scripts/make_zip.py
